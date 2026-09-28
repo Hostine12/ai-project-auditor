@@ -1,0 +1,38 @@
+{
+  "name": "ai-project-auditor",
+  "version": "1.0.0",
+  "description": "AI-powered SEO and AEO auditor for web projects",
+  "keywords": [
+    "seo",
+    "aeo",
+    "ai",
+    "auditor",
+    "npm",
+    "cli"
+  ],
+  "license": "ISC",
+  "author": "Elvire Hostine FADEGNON",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "ai-project-auditor": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    ".env.example"
+  ],
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "zod": "^4.4.3"
+  }
+}

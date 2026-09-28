@@ -1,0 +1,26 @@
+# Variables d'environnement
+
+.env
+.env.*
+!.env.example
+
+# Dépendances
+
+node_modules/
+
+# Fichiers générés
+
+dist/
+audit-report.json
+
+# Logs
+
+*.log
+
+# Fichiers système
+
+.DS_Store
+Thumbs.db
+
+# Cache local
+.ai-project-auditor/
