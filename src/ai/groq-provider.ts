@@ -4,6 +4,9 @@ import type {
   AIAnalysisResult,
   AIProvider,
 } from "./ai-provider.js";
+import {
+  AIAnalysisSchema,
+} from "./schemas/ai-analysis-schema.js";
 
 export class GroqProvider implements AIProvider {
   private readonly apiKey: string;
@@ -17,23 +20,26 @@ export class GroqProvider implements AIProvider {
   async analyze(
     input: AIAnalysisInput
   ): Promise<AIAnalysisResult> {
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
+    let response: Response;
 
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
+try {
+  response = await fetch(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      method: "POST",
 
-        body: JSON.stringify({
-          model: this.model,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
 
-          messages: [
-            {
-              role: "system",
-              content: `
+      body: JSON.stringify({
+        model: this.model,
+
+        messages: [
+          {
+            role: "system",
+            content: `
 Tu es un expert en SEO et AEO.
 
 Tu dois analyser le fichier fourni.
@@ -82,11 +88,11 @@ Consignes supplémentaires :
 - Pour un fichier Markdown, analyse les titres et le contenu réellement présents.
 - Si le fichier est du code ou ne contient pas de contenu pertinent pour le SEO, indique-le clairement.
 `,
-            },
+          },
 
-            {
-              role: "user",
-              content: `
+          {
+            role: "user",
+            content: `
 Analyse le fichier suivant selon les critères SEO et AEO.
 
 Nom du fichier :
@@ -95,19 +101,27 @@ ${input.file}
 Contenu du fichier :
 ${input.content}
 `,
-            },
-          ],
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-
-      throw new Error(
-        `Erreur Groq : ${response.status} ${response.statusText}\n${errorBody}`
-      );
+          },
+        ],
+      }),
     }
+  );
+} catch {
+  throw new Error(
+    "Erreur réseau lors de la communication avec Groq."
+  );
+}
+    if (!response.ok) {
+  if (response.status === 429) {
+    throw new Error(
+      "Groq a atteint sa limite de requêtes. Veuillez réessayer plus tard."
+    );
+  }
+
+  throw new Error(
+    `Erreur Groq : ${response.status} ${response.statusText}`
+  );
+}
 
     const data = await response.json();
 
@@ -146,9 +160,20 @@ ${input.content}
      * vides avant la validation Zod.
      */
     const normalizedJson =
-      normalizeAIResult(parsedJson);
+  normalizeAIResult(parsedJson);
 
-    return normalizedJson;
+const validatedResult =
+  AIAnalysisSchema.safeParse(normalizedJson);
+
+if (!validatedResult.success) {
+  throw new Error(
+    `La réponse Groq ne respecte pas le schéma attendu : ${JSON.stringify(
+      validatedResult.error.issues
+    )}`
+  );
+}
+
+return validatedResult.data;
   }
 }
 

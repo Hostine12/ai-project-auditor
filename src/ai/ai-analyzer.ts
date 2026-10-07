@@ -1,6 +1,10 @@
 import type { FileInfo } from "../types/file-info.js";
 
 import {
+  sanitizeContent,
+} from "./sanitize-content.js";
+
+import {
   getAICacheEntry,
   setAICacheEntry,
 } from "./ai-cache.js";
@@ -38,18 +42,24 @@ export async function analyzeWithAI(
   );
 
   const result = await provider.analyze({
-    file: file.path,
-    content: file.content,
-  });
+  file: file.path,
+  content: sanitizeContent(file.content),
+});
 
-  await setAICacheEntry(
-    file.path,
-    file.content,
-    providerName,
-    model,
-    result,
-    cacheDirectory
-  );
+   try {
+    await setAICacheEntry(
+      file.path,
+      file.content,
+      providerName,
+      model,
+      result,
+      cacheDirectory
+    );
+  } catch {
+    console.warn(
+      `Impossible d'enregistrer le cache IA pour ${file.path}.`
+    );
+  }
 
   return result;
 }

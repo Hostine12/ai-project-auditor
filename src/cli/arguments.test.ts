@@ -51,6 +51,38 @@ describe("parseArguments", () => {
   );
 });
 
+it("fonctionne avec init sans chemin", () => {
+  const result = parseArguments([
+    "init",
+  ]);
+
+  expect(result.command).toBe("init");
+  expect(result.projectPath).toBe(".");
+});
+
+it("récupère le chemin du projet avec init", () => {
+  const result = parseArguments([
+    "init",
+    "./mon-projet",
+  ]);
+
+  expect(result.command).toBe("init");
+  expect(result.projectPath).toBe("./mon-projet");
+});
+
+it("rejette plusieurs chemins avec init", () => {
+  const result = parseArguments([
+    "init",
+    "./projet1",
+    "./projet2",
+  ]);
+
+  expect(result.error).toBe(
+    "La commande init accepte au maximum un chemin de projet."
+  );
+});
+
+
 it("rejette une commande inconnue", () => {
   const result = parseArguments([
     "test",

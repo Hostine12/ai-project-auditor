@@ -35,22 +35,24 @@ export function parseArguments(
     };
   }
 
-  if (command === "scan") {
-    if (args.length > 2) {
-      return {
-        command,
-        projectPath: args[1] ?? ".",
-        error:
-          "La commande scan accepte au maximum un chemin de projet.",
-      };
-    }
-
+  if (
+  command === "scan" ||
+  command === "init"
+) {
+  if (args.length > 2) {
     return {
       command,
       projectPath: args[1] ?? ".",
+      error:
+        `La commande ${command} accepte au maximum un chemin de projet.`,
     };
   }
 
+  return {
+    command,
+    projectPath: args[1] ?? ".",
+  };
+}
   return {
     command,
     projectPath: ".",

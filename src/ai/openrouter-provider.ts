@@ -22,23 +22,26 @@ export class OpenRouterProvider implements AIProvider {
   async analyze(
     input: AIAnalysisInput
   ): Promise<AIAnalysisResult> {
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
+   let response: Response;
 
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
+try {
+  response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
 
-        body: JSON.stringify({
-          model: this.model,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
 
-          messages: [
-            {
-              role: "system",
-              content: `
+      body: JSON.stringify({
+        model: this.model,
+
+        messages: [
+          {
+            role: "system",
+            content: `
 Tu es un expert en SEO, AEO et analyse de contenu web.
 
 Ta mission est d'analyser le fichier fourni afin d'identifier les éléments qui peuvent améliorer sa visibilité dans les moteurs de recherche et sa capacité à fournir des réponses utiles aux moteurs et assistants utilisant l'intelligence artificielle.
@@ -103,11 +106,11 @@ Structure obligatoire :
 }
 }
 `,
-            },
+          },
 
-            {
-              role: "user",
-              content: `
+          {
+            role: "user",
+            content: `
 Analyse le fichier suivant
 
 Nom du fichier :
@@ -116,17 +119,28 @@ ${input.file}
 Contenu du fichier :
 ${input.content}
 `,
-            },
-          ],
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(
-        `Erreur OpenRouter : ${response.status} ${response.statusText}`
-      );
+          },
+        ],
+      }),
     }
+  );
+} catch {
+  throw new Error(
+    "Erreur réseau lors de la communication avec OpenRouter."
+  );
+}
+
+   if (!response.ok) {
+  if (response.status === 429) {
+    throw new Error(
+      "OpenRouter a atteint sa limite de requêtes. Veuillez réessayer plus tard."
+    );
+  }
+
+  throw new Error(
+    `Erreur OpenRouter : ${response.status} ${response.statusText}`
+  );
+}
 
     const data = await response.json();
 
@@ -139,8 +153,7 @@ ${input.content}
       );
     }
 
-    console.log("Réponse brute OpenRouter :");
-    console.log(content);
+    
 
     const cleanedContent = extractJsonObject(content);
 

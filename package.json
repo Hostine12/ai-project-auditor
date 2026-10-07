@@ -15,7 +15,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "ai-project-auditor": "dist/index.js"
+    "ai-audit": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

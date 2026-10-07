@@ -1,5 +1,6 @@
 import {
   afterEach,
+  beforeEach,
   describe,
   expect,
   it,
@@ -22,6 +23,10 @@ import {
 
 vi.mock("./ai/ai-analyzer.js", () => ({
   analyzeWithAI: vi.fn(),
+}));
+
+vi.mock("./ai/ai-provider-factory.js", () => ({
+  createAIProvider: vi.fn(),
 }));
 
 vi.mock("node:fs/promises", async () => {
@@ -67,13 +72,35 @@ import {
   analyzeWithAI,
 } from "./ai/ai-analyzer.js";
 
-// import { startScan } from "./scanner/project-scanner.js";
+import {
+  createAIProvider,
+} from "./ai/ai-provider-factory.js";
 
-// vi.mock("./scanner/project-scanner.js", () => ({
-//   startScan: vi.fn(),
-// }));
+import { startScan } from "./scanner/project-scanner.js";
+
+vi.mock("./scanner/project-scanner.js", async () => {
+  const actual =
+    await vi.importActual<
+      typeof import("./scanner/project-scanner.js")
+    >("./scanner/project-scanner.js");
+
+  return {
+    ...actual,
+    startScan: vi.fn(actual.startScan),
+  };
+});
 
 const temporaryDirectories: string[] = [];
+
+beforeEach(() => {
+  vi.mocked(
+    createAIProvider
+  ).mockReturnValue({
+    provider: {} as never,
+    providerName: "openrouter",
+    model: "openrouter/free",
+  });
+});
 
 afterEach(async () => {
   for (
@@ -671,5 +698,483 @@ it("analyse correctement plusieurs fichiers dans un même projet", async () => {
     result.aeo.score
   ).toBeLessThanOrEqual(100);
 });
+
+it("n'effectue pas l'analyse SEO lorsque la fonctionnalité SEO est désactivée", async () => {
+  const projectDirectory = await mkdtemp(
+    join(tmpdir(), "ai-project-auditor-")
+  );
+
+  temporaryDirectories.push(projectDirectory);
+
+  await writeFile(
+    join(projectDirectory, "index.html"),
+    `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Page de test</title>
+        </head>
+
+        <body>
+          <h1>Test</h1>
+        </body>
+      </html>
+    `,
+    "utf-8"
+  );
+
+  const config = {
+    include: [],
+    exclude: [],
+    features: {
+      seo: false,
+      aeo: true,
+      ai: false,
+    },
+    output: {
+      path: "audit-report.json",
+    },
+    ci: {
+      threshold: 0,
+    },
+  };
+
+  const result = await runAudit(
+    projectDirectory,
+    config
+  );
+
+  expect(result.metadata.filesScanned).toBe(1);
+
+  expect(result.seo.issues).toEqual([]);
+  expect(result.seo.summary.totalIssues).toBe(0);
+  expect(result.seo.score).toBe(100);
+});
+
+it("n'effectue pas l'analyse AEO lorsque la fonctionnalité AEO est désactivée", async () => {
+  const projectDirectory = await mkdtemp(
+    join(tmpdir(), "ai-project-auditor-")
+  );
+
+  temporaryDirectories.push(projectDirectory);
+
+  await writeFile(
+    join(projectDirectory, "index.html"),
+    `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Page de test</title>
+          <meta
+            name="description"
+            content="Une page de test"
+          />
+        </head>
+
+        <body>
+          <h1>Test</h1>
+        </body>
+      </html>
+    `,
+    "utf-8"
+  );
+
+  const config = {
+    include: [],
+    exclude: [],
+    features: {
+      seo: true,
+      aeo: false,
+      ai: false,
+    },
+    output: {
+      path: "audit-report.json",
+    },
+    ci: {
+      threshold: 0,
+    },
+  };
+
+  const result = await runAudit(
+    projectDirectory,
+    config
+  );
+
+  expect(
+    result.metadata.filesScanned
+  ).toBe(1);
+
+  expect(
+    result.aeo.issues
+  ).toEqual([]);
+
+  expect(
+    result.aeo.summary.totalIssues
+  ).toBe(0);
+
+  expect(
+    result.aeo.score
+  ).toBe(100);
+});
+
+it("n'effectue pas l'analyse IA lorsque la fonctionnalité IA est désactivée", async () => {
+  const projectDirectory = await mkdtemp(
+    join(tmpdir(), "ai-project-auditor-")
+  );
+
+  temporaryDirectories.push(projectDirectory);
+
+  await writeFile(
+    join(projectDirectory, "index.html"),
+    `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Page de test</title>
+          <meta
+            name="description"
+            content="Une page de test"
+          />
+        </head>
+
+        <body>
+          <h1>Test</h1>
+        </body>
+      </html>
+    `,
+    "utf-8"
+  );
+
+  vi.mocked(analyzeWithAI).mockClear();
+
+  const config = {
+    include: [],
+    exclude: [],
+    features: {
+      seo: true,
+      aeo: true,
+      ai: false,
+    },
+    output: {
+      path: "audit-report.json",
+    },
+    ci: {
+      threshold: 0,
+    },
+  };
+
+  const result = await runAudit(
+    projectDirectory,
+    config
+  );
+
+  expect(
+    result.metadata.filesScanned
+  ).toBe(1);
+
+  expect(
+    result.ai.results
+  ).toEqual([]);
+
+  expect(
+    result.ai.errors
+  ).toEqual([]);
+
+  expect(
+    analyzeWithAI
+  ).not.toHaveBeenCalled();
+});
+
+it(
+  "calcule les scores globaux à partir des pénalités agrégées",
+  async () => {
+    const projectDirectory =
+      await mkdtemp(
+        join(
+          tmpdir(),
+          "ai-project-auditor-"
+        )
+      );
+
+    temporaryDirectories.push(
+      projectDirectory
+    );
+
+    await writeFile(
+      join(
+        projectDirectory,
+        "perfect.html"
+      ),
+      `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Page parfaite</title>
+            <meta
+              name="description"
+              content="Une page parfaitement optimisée"
+            />
+          </head>
+
+          <body>
+            <h1>Page parfaite</h1>
+
+            <p>
+              Cette page contient une réponse directement identifiable.
+            </p>
+          </body>
+        </html>
+      `,
+      "utf-8"
+    );
+
+    await writeFile(
+      join(
+        projectDirectory,
+        "problem.html"
+      ),
+      `
+        <!DOCTYPE html>
+        <html>
+          <head>
+          </head>
+
+          <body>
+            <p></p>
+          </body>
+        </html>
+      `,
+      "utf-8"
+    );
+
+    const config = {
+      ai: {
+        provider: "openrouter" as const,
+      },
+
+      include: [],
+
+      exclude: [],
+
+      features: {
+        seo: true,
+        aeo: true,
+        ai: false,
+      },
+
+      output: {
+        path: "audit-report.json",
+      },
+
+      ci: {
+        threshold: 0,
+      },
+    };
+
+    const result =
+      await runAudit(
+        projectDirectory,
+        config
+      );
+
+    /*
+ * perfect.html
+ * SEO = 100
+ * AEO = 100
+ *
+ * problem.html
+ * missing-title           = -20
+ * missing-h1              = -10
+ * missing-meta-description = -5
+ *
+ * Pénalité SEO globale = 35
+ * SEO global = 100 - 35 = 65
+ *
+ * problem.html
+ * missing-direct-answer = -10
+ *
+ * Pénalité AEO globale = 10
+ * AEO global = 100 - 10 = 90
+ */
+
+    expect(
+  result.seo.score
+).toBe(65);
+
+expect(
+  result.aeo.score
+).toBe(90);
+  }
+);
+
+it(
+  "transmet la configuration effective au scanner",
+  async () => {
+    const projectDirectory = await mkdtemp(
+      join(tmpdir(), "ai-project-auditor-")
+    );
+
+    temporaryDirectories.push(projectDirectory);
+
+    const config = {
+      include: ["src"],
+      exclude: ["node_modules"],
+      features: {
+        seo: false,
+        aeo: false,
+        ai: false,
+      },
+      output: {
+        path: "audit-report.json",
+      },
+      ci: {
+        threshold: 0,
+      },
+    };
+
+    vi.mocked(startScan).mockResolvedValue({
+      files: [],
+      errors: [],
+    });
+
+    await runAudit(
+      projectDirectory,
+      config
+    );
+
+    expect(startScan).toHaveBeenCalledWith(
+      projectDirectory,
+      config
+    );
+  }
+);
+
+it(
+  "utilise le provider et le modèle configurés dans le fichier de configuration",
+  async () => {
+    const projectDirectory =
+      await mkdtemp(
+        join(
+          tmpdir(),
+          "ai-project-auditor-"
+        )
+      );
+
+    temporaryDirectories.push(
+      projectDirectory
+    );
+
+    await writeFile(
+      join(
+        projectDirectory,
+        "index.html"
+      ),
+      `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Page de test</title>
+            <meta
+              name="description"
+              content="Une page de test"
+            />
+          </head>
+
+          <body>
+            <h1>Test</h1>
+          </body>
+        </html>
+      `,
+      "utf-8"
+    );
+
+    await writeFile(
+      join(
+        projectDirectory,
+        "ai-audit.config.json"
+      ),
+      JSON.stringify(
+        {
+          ai: {
+            provider: "groq",
+            model: "mon-modele-groq",
+          },
+        }
+      ),
+      "utf-8"
+    );
+
+    vi.mocked(
+      createAIProvider
+    ).mockReturnValue({
+      provider: {} as never,
+      providerName: "groq",
+      model: "mon-modele-groq",
+    });
+
+    vi.mocked(
+      analyzeWithAI
+    ).mockResolvedValue({
+      file: join(
+        projectDirectory,
+        "index.html"
+      ),
+
+      seo: {
+        title: "Page de test",
+        h1: ["Test"],
+        metaDescription: "Une page de test",
+        keywords: [],
+        strengths: [],
+        weaknesses: [],
+        recommendations: [],
+      },
+
+      aeo: {
+        directAnswer: null,
+        strengths: [],
+        weaknesses: [],
+        recommendations: [],
+      },
+    });
+
+    await runAudit(
+      projectDirectory
+    );
+
+    expect(
+      createAIProvider
+    ).toHaveBeenCalledWith({
+      ai: {
+        provider: "groq",
+        model: "mon-modele-groq",
+      },
+
+      include: [],
+
+      exclude: [
+        "node_modules",
+        ".git",
+        "dist",
+        "build",
+      ],
+
+      features: {
+        seo: true,
+        aeo: true,
+        ai: true,
+      },
+
+      output: {
+        path: "audit-report.json",
+      },
+
+      ci: {
+        threshold: 0,
+      },
+    });
+  }
+);
+
   }
 );

@@ -6,6 +6,10 @@ export interface RuleIssue {
   type: string;
   message: string;
   severity: IssueSeverity;
+  line?: number;
+  column?: number;
+  recommendation?: string;
+  fix?: string;
 }
 
 export interface AuditIssue extends RuleIssue {

@@ -24,3 +24,15 @@ Thumbs.db
 
 # Cache local
 .ai-project-auditor/
+
+# Tests locaux du package
+.ai-project-auditor-test/
+
+# Archives npm générées localement
+*.tgz
+
+# Rapports générés
+reports/
+
+# Configuration locale du projet audité
+ai-audit.config.json

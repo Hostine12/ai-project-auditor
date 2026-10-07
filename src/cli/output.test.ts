@@ -12,6 +12,7 @@ describe("printAuditSummary", () => {
       filesWithIssues: 2,
       seoScore: 98,
       aeoScore: 90,
+      reportPath: "audit-report.json",
     });
 
     expect(consoleSpy).toHaveBeenCalledWith(

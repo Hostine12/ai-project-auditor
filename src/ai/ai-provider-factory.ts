@@ -1,8 +1,11 @@
-
 import { loadConfig } from "../config/config.js";
 
+import type { AuditConfig } from "../config/audit-config.js";
+
 import type { AIProvider } from "./ai-provider.js";
+
 import { OpenRouterProvider } from "./openrouter-provider.js";
+
 import { GroqProvider } from "./groq-provider.js";
 
 export interface AIProviderConfig {
@@ -11,23 +14,35 @@ export interface AIProviderConfig {
   model: string;
 }
 
-export function createAIProvider(): AIProviderConfig {
-  const config = loadConfig();
+export function createAIProvider(
+  auditConfig?: Pick<AuditConfig, "ai">
+): AIProviderConfig {
+  const config = loadConfig(
+  auditConfig?.ai.provider
+);
 
-  if (config.provider === "groq") {
+  const providerName =
+    auditConfig?.ai.provider ??
+    config.provider;
+
+  if (providerName === "groq") {
     if (!config.groqApiKey) {
       throw new Error(
         "GROQ_API_KEY est absente."
       );
     }
 
+    const model =
+      auditConfig?.ai.model ??
+      config.groqModel;
+
     return {
       provider: new GroqProvider(
         config.groqApiKey,
-        config.groqModel
+        model
       ),
       providerName: "groq",
-      model: config.groqModel,
+      model,
     };
   }
 
@@ -37,13 +52,16 @@ export function createAIProvider(): AIProviderConfig {
     );
   }
 
+  const model =
+    auditConfig?.ai.model ??
+    config.openRouterModel;
+
   return {
     provider: new OpenRouterProvider(
       config.openRouterApiKey,
-      config.openRouterModel
+      model
     ),
     providerName: "openrouter",
-    model: config.openRouterModel,
+    model,
   };
 }
-

@@ -10,6 +10,13 @@ const AuditIssueSchema = z.object({
   type: z.string(),
   message: z.string(),
   severity: IssueSeveritySchema,
+
+  line: z.number().int().positive().optional(),
+  column: z.number().int().positive().optional(),
+
+  recommendation: z.string().optional(),
+  fix: z.string().optional(),
+
   ruleId: z.string(),
   file: z.string().optional(),
 });
@@ -100,7 +107,7 @@ export const AuditReportSchema = z.object({
       error: z.string(),
     })
   ),
-}).optional(),
+}),
 });
 
 export type AuditReport = z.infer<

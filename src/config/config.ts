@@ -7,8 +7,13 @@ export interface AIConfig {
   groqModel: string;
 }
 
-export function loadConfig(): AIConfig {
-  const provider = process.env.AI_PROVIDER ?? "openrouter";
+export function loadConfig(
+  providerOverride?: "openrouter" | "groq"
+): AIConfig {
+  const provider =
+  providerOverride ??
+  process.env.AI_PROVIDER ??
+  "openrouter";
 
   if (
     provider !== "openrouter" &&

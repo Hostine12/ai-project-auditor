@@ -10,6 +10,10 @@ import {
 import { parseArguments } from "./cli/arguments.js";
 import { printAuditSummary } from "./cli/output.js";
 import { formatCLIError } from "./cli/errors.js";
+import { loadAuditConfig } from "./config/audit-config.js";
+import {
+  initAuditConfig,
+} from "./config/init-config.js";
 
 const VERSION = "1.0.0";
 
@@ -18,11 +22,13 @@ function showHelp(): void {
 AI Project Auditor
 
 Usage:
-  ai-project-auditor scan [path]
-  ai-project-auditor --help
-  ai-project-auditor --version
+  ai-audit init [path]
+  ai-audit scan [path]
+  ai-audit --help
+  ai-audit --version
 
 Commands:
+  init        Initialise la configuration du projet
   scan        Analyse le projet indiqué
   --help      Affiche cette aide
   --version   Affiche la version
@@ -43,7 +49,7 @@ const {
 if (error) {
   console.error(`Erreur : ${error}`);
   console.error(
-    'Utilisez "ai-project-auditor --help" pour voir les commandes disponibles.'
+    'Utilisez "ai-audit --help" pour voir les commandes disponibles.'
   );
 
   process.exitCode = 1;
@@ -66,6 +72,27 @@ if (error) {
     console.log(VERSION);
     return;
   }
+
+
+if (command === "init") {
+  try {
+    const configPath =
+      await initAuditConfig(projectPath);
+
+    console.log(
+      `Configuration créée : ${configPath}`
+    );
+  } catch (error) {
+    console.error(
+      `Erreur : ${formatCLIError(error)}`
+    );
+
+    process.exitCode = 1;
+  }
+
+  return;
+}
+
 
   if (command === "scan") {
     console.log("");
@@ -99,7 +126,13 @@ try {
   return;
 }
 
-    const result = await runAudit(projectPath);
+  
+    const config = await loadAuditConfig(projectPath);
+
+const result = await runAudit(
+  projectPath,
+  config
+);
     const validation =
   AuditReportSchema.safeParse(result);
 
@@ -122,9 +155,32 @@ if (!validation.success) {
   filesWithIssues: result.metadata.filesWithIssues,
   seoScore: result.seo.score,
   aeoScore: result.aeo.score,
+  reportPath: config.output.path,
 });
 
-await generateJsonReport(result);
+await generateJsonReport(
+  result,
+  config.output.path
+);
+
+
+
+const threshold = config.ci.threshold;
+
+const thresholdPassed =
+  result.seo.score >= threshold &&
+  result.aeo.score >= threshold;
+
+if (!thresholdPassed) {
+  console.error(
+    `\nÉchec du seuil CI/CD : ` +
+    `SEO ${result.seo.score}/100, ` +
+    `AEO ${result.aeo.score}/100, ` +
+    `seuil ${threshold}/100.`
+  );
+
+  process.exitCode = 1;
+}
     return;
   }
 
@@ -133,7 +189,7 @@ await generateJsonReport(result);
   );
 
   console.error(
-    'Utilisez "ai-project-auditor --help" pour voir les commandes disponibles.'
+    'Utilisez "ai-audit --help" pour voir les commandes disponibles.'
   );
 
   process.exitCode = 1;
@@ -146,4 +202,6 @@ main().catch((error) => {
   );
 
   process.exitCode = 1;
+
+  
 });

@@ -57,6 +57,9 @@ describe(
 
             errors: [],
           },
+          scan: {
+  errors: [],
+},
         };
 
         const result =
@@ -118,6 +121,9 @@ describe(
             results: [],
             errors: [],
           },
+          scan: {
+  errors: [],
+},
         };
 
         const result =
@@ -189,6 +195,9 @@ describe(
               },
             ],
           },
+          scan: {
+  errors: [],
+},
         };
 
         const result =
@@ -199,6 +208,177 @@ describe(
         expect(result.success).toBe(false);
       }
     );
+
+    it(
+  "valide les détails d'un problème d'audit",
+  () => {
+
+    const report = {
+      project: {
+        name: "test-project",
+      },
+
+      metadata: {
+        generatedAt:
+          new Date().toISOString(),
+        filesScanned: 1,
+        filesWithIssues: 1,
+      },
+
+      seo: {
+        score: 80,
+
+        summary: {
+          errors: 1,
+          warnings: 0,
+          infos: 0,
+          totalIssues: 1,
+        },
+
+        ruleStats: [
+          {
+            ruleId: "missing-title",
+            issueCount: 1,
+            rawPenalty: 20,
+            appliedPenalty: 20,
+          },
+        ],
+
+        issues: [
+          {
+            type: "missing-title",
+            message:
+              "La page ne possède pas de balise title.",
+            severity: "error",
+            line: 3,
+            column: 1,
+            recommendation:
+              "Ajouter une balise title unique et descriptive.",
+            fix:
+              "Ajouter une balise <title>...</title>.",
+            ruleId: "missing-title",
+            file: "index.html",
+          },
+        ],
+      },
+
+      aeo: {
+        score: 100,
+
+        summary: {
+          errors: 0,
+          warnings: 0,
+          infos: 0,
+          totalIssues: 0,
+        },
+
+        ruleStats: [],
+
+        issues: [],
+      },
+
+      ai: {
+        results: [],
+        errors: [],
+      },
+
+      scan: {
+        errors: [],
+      },
+    };
+
+    const result =
+      AuditReportSchema.safeParse(
+        report
+      );
+
+    expect(result.success).toBe(true);
+  }
+);
+
+it(
+  "rejette un détail de problème mal structuré",
+  () => {
+
+    const report = {
+      project: {
+        name: "test-project",
+      },
+
+      metadata: {
+        generatedAt:
+          new Date().toISOString(),
+        filesScanned: 1,
+        filesWithIssues: 1,
+      },
+
+      seo: {
+        score: 80,
+
+        summary: {
+          errors: 1,
+          warnings: 0,
+          infos: 0,
+          totalIssues: 1,
+        },
+
+        ruleStats: [],
+
+        issues: [
+          {
+            type: "missing-title",
+            message:
+              "La page ne possède pas de balise title.",
+            severity: "error",
+
+            // Volontairement incorrect :
+            // line doit être un nombre.
+            line: "3",
+
+            column: 1,
+            recommendation:
+              "Ajouter une balise title.",
+            fix:
+              "Ajouter une balise <title>.",
+            ruleId: "missing-title",
+            file: "index.html",
+          },
+        ],
+      },
+
+      aeo: {
+        score: 100,
+
+        summary: {
+          errors: 0,
+          warnings: 0,
+          infos: 0,
+          totalIssues: 0,
+        },
+
+        ruleStats: [],
+
+        issues: [],
+      },
+
+      ai: {
+        results: [],
+        errors: [],
+      },
+
+      scan: {
+        errors: [],
+      },
+    };
+
+    const result =
+      AuditReportSchema.safeParse(
+        report
+      );
+
+    expect(result.success).toBe(false);
+  }
+);
 
     it(
       "accepte les erreurs du scanner",

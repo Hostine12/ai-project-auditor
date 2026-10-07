@@ -25,17 +25,30 @@ L’objectif est de fournir un outil capable d’analyser automatiquement un pro
 * Exclusion automatique de certains dossiers comme `node_modules`, `.git`, `dist` et `build`.
 * Gestion des erreurs de lecture des fichiers.
 
-### 📈 Analyse SEO
+## 📈 Analyse SEO
 
-* Vérification du titre HTML.
-* Vérification de la présence et du contenu de la meta description.
-* Vérification des balises `<h1>`.
-* Détection des titres multiples ou manquants.
-* Vérification des attributs `alt` des images.
-* Calcul d’un score SEO.
-* Statistiques par règle et résumé des problèmes détectés.
+- Vérification du titre HTML (`<title>`).
+- Vérification de la présence et du contenu de la meta description.
+- Vérification de la présence des balises `<h1>`.
+- Détection des titres multiples ou manquants.
+- Vérification des attributs `alt` des images.
+- Analyse de la structure et du contenu pertinent du projet.
+- Calcul d'un score SEO.
+- Statistiques par règle et résumé des problèmes détectés.
 
 ### 🤖 Analyse AEO
+
+L'analyse AEO vise à évaluer les éléments qui facilitent la compréhension et l'extraction des informations par les moteurs de réponse.
+
+Elle prend notamment en compte :
+
+- la présence de réponses directes et compréhensibles ;
+- la clarté et la structure de l'information ;
+- l'organisation des questions et réponses ;
+- la présence et la structuration des contenus de type FAQ ;
+- la capacité du contenu à fournir rapidement une réponse pertinente.
+
+L'outil calcule un score AEO et fournit un résumé ainsi que des statistiques sur les problèmes détectés.
 
 * Analyse des éléments favorisant la compréhension du contenu par les moteurs de réponse.
 * Détection des problèmes selon les règles AEO définies dans le projet.
@@ -51,21 +64,39 @@ L’objectif est de fournir un outil capable d’analyser automatiquement un pro
 * Gestion des erreurs du fournisseur IA.
 * Mise en cache des analyses afin d’éviter des appels inutiles.
 
-### 📊 Rapport d’audit
+## 📊 Rapport d’audit
 
-* Génération d’un rapport structuré au format JSON.
-* Résultats SEO et AEO.
-* Résultats de l’analyse IA.
-* Erreurs de scan et erreurs IA.
-* Métadonnées de l’audit.
-* Validation de la structure du rapport avec Zod.
+L'audit génère un rapport structuré au format JSON dans le fichier `audit-report.json` par défaut.
 
+Le rapport contient notamment :
+
+- les résultats et le score SEO ;
+- les résultats et le score AEO ;
+- les problèmes détectés et leur niveau de gravité ;
+- les résultats de l'analyse IA ;
+- les erreurs rencontrées lors du scan et de l'analyse IA ;
+- les métadonnées de l'audit, notamment le nombre de fichiers analysés ;
+- les résultats regroupés par fichier et par règle ;
+- les recommandations associées aux problèmes détectés.
+
+La structure du rapport est validée avec **Zod** afin de garantir un format de sortie cohérent et exploitable.
 ### 🛡️ Robustesse et sécurité
 
-* Validation des données reçues de l’IA.
-* Gestion des erreurs à différents niveaux du processus d’audit.
-* Protection des informations sensibles dans certains messages d’erreur.
-* Tests unitaires et tests d’intégration.
+Validation des données reçues des fournisseurs IA.
+
+Validation de la structure du rapport avec Zod.
+
+Gestion des erreurs à différents niveaux du processus d'audit.
+
+Gestion des erreurs de lecture des fichiers sans interrompre l'ensemble du scan.
+
+Gestion des erreurs des fournisseurs IA et des limites de requêtes.
+
+Protection des informations sensibles dans les données transmises à l'IA et les messages d'erreur.
+
+Les clés API ne sont jamais affichées dans les rapports, les logs ou les messages d'erreur.
+
+Tests unitaires et tests d'intégration.
 
 
 ## 🛠️ Technologies utilisées
@@ -92,139 +123,259 @@ Le projet peut être exécuté sur un environnement Windows, Linux ou macOS disp
 
 ## ⚙️ Installation
 
-### 1. Cloner le projet
+### Prérequis
 
-Clonez le dépôt du projet puis placez-vous dans son dossier :
+- Node.js 18 ou version supérieure
+- npm
 
-```bash
-git clone <URL_DU_DEPOT>
-cd ai-project-auditor
-```
+### Installation du package
 
-### 2. Installer les dépendances
-
-Installez les dépendances du projet avec npm :
+Dans le projet que vous souhaitez auditer :
 
 ```bash
-npm install
+npm install -D ai-project-auditor
 ```
 
-### 3. Compiler le projet
-
-Compilez le code TypeScript :
+Le package fournit la commande :
 
 ```bash
-npx tsc
+npx ai-audit
 ```
 
-Si la compilation se termine sans erreur, le projet est prêt à être exécuté.
+### Initialisation de la configuration
 
-### 4. Configurer les variables d’environnement
+Pour créer automatiquement le fichier de configuration :
 
-Créez un fichier `.env` à la racine du projet et renseignez la clé API du fournisseur IA que vous souhaitez utiliser.
+```bash
+npx ai-audit init
+```
+
+Cela génère un fichier `ai-audit.config.json` à la racine du projet.
+
+Exemple de configuration générée :
+
+```json
+{
+  "ai": {
+    "provider": "openrouter"
+  },
+  "include": [],
+  "exclude": [
+    "node_modules",
+    ".git",
+    "dist",
+    "build"
+  ],
+  "features": {
+    "seo": true,
+    "aeo": true,
+    "ai": true
+  },
+  "output": {
+    "path": "audit-report.json"
+  },
+  "ci": {
+    "threshold": 0
+  }
+}
+```
+
+Le fichier peut ensuite être personnalisé selon les besoins du projet.
+
+### Configuration de l'IA
+
+Deux fournisseurs sont pris en charge :
+
+- OpenRouter
+- Groq
+
+#### OpenRouter
+
+```json
+{
+  "ai": {
+    "provider": "openrouter",
+    "model": "openrouter/free"
+  }
+}
+```
+
+La clé API doit être fournie dans une variable d'environnement :
+
+```env
+OPENROUTER_API_KEY=votre_clé
+```
+
+#### Groq
+
+```json
+{
+  "ai": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-20b"
+  }
+}
+```
+
+La clé API doit être fournie dans une variable d'environnement :
+
+```env
+GROQ_API_KEY=votre_clé
+```
+
+Les clés API ne doivent jamais être placées dans le code source, dans `ai-audit.config.json` ou dans le rapport généré.
+
+### Fichiers inclus et exclus
+
+Le champ `include` permet de limiter l'analyse à certains fichiers ou dossiers.
 
 Exemple :
 
-```env
-OPENROUTER_API_KEY=votre_cle_api
+```json
+{
+  "include": [
+    "src",
+    "index.html"
+  ]
+}
 ```
 
-ou :
+Si `include` est vide :
 
-```env
-GROQ_API_KEY=votre_cle_api
+```json
+"include": []
 ```
 
-> Ne partagez jamais vos clés API et ne les ajoutez pas au dépôt Git.
+le scanner parcourt automatiquement le projet en appliquant les exclusions configurées.
 
+Le champ `exclude` permet d'empêcher certains fichiers ou dossiers d'être analysés.
 
-## ⚙️ Configuration
+Les exclusions par défaut sont :
 
-AI Project Auditor utilise des variables d’environnement pour configurer l’accès aux fournisseurs d’intelligence artificielle.
-
-### 🔑 Variables d’environnement
-
-Créez un fichier `.env` à la racine du projet.
-
-Par défaut, AI Project Auditor utilise **OpenRouter**.
-
-Pour utiliser OpenRouter :
-
-```env
-AI_PROVIDER=openrouter
-OPENROUTER_API_KEY=votre_cle_api
+```json
+"exclude": [
+  "node_modules",
+  ".git",
+  "dist",
+  "build"
+]
 ```
 
-Pour utiliser Groq :
+Les exclusions restent prioritaires sur les inclusions. Un fichier ou dossier exclu ne sera donc pas analysé même s'il se trouve dans un chemin indiqué dans `include`.
 
-```env
-AI_PROVIDER=groq
-GROQ_API_KEY=votre_cle_api
+### Fonctionnalités
+
+Les fonctionnalités peuvent être activées ou désactivées individuellement :
+
+```json
+{
+  "features": {
+    "seo": true,
+    "aeo": true,
+    "ai": true
+  }
+}
 ```
 
-### 🤖 Modèle IA
+- `seo` : active l'analyse SEO statique.
+- `aeo` : active l'analyse AEO.
+- `ai` : active l'analyse sémantique avec le fournisseur IA configuré.
 
-Il est également possible de personnaliser le modèle utilisé par chaque fournisseur.
+Désactiver l'IA permet notamment d'effectuer une analyse locale sans appel à un fournisseur d'IA.
 
-Pour OpenRouter :
+### Fichiers analysés
 
-```env
-OPENROUTER_MODEL=openrouter/free
-```
+Le scanner prend en charge les extensions suivantes :
 
-Pour Groq :
+- `.html`
+- `.js`
+- `.jsx`
+- `.ts`
+- `.tsx`
+- `.md`
 
-```env
-GROQ_MODEL=openai/gpt-oss-20b
-```
+Les autres types de fichiers sont ignorés.
 
-Si aucun modèle n'est indiqué, le projet utilise automatiquement les modèles configurés par défaut.
+Les fichiers de plus de **5 Mo** ne sont pas lus ni transmis à l'analyse. Ils sont signalés dans les erreurs du rapport, sans interrompre l'ensemble du scan.
 
-Les clés API doivent rester privées et ne doivent jamais être publiées dans le dépôt du projet.
+### Chemin du rapport
 
-> Le fichier `.env` doit être ajouté au `.gitignore`.
-
-
-
-
-## 🚀 Utilisation
-
-Après l'installation et la configuration, l'audit peut être lancé depuis la ligne de commande.
-
-### Lancer un audit
-
-Pour analyser le projet courant :
-
-```bash
-node dist/index.js scan
-```
-
-Pour analyser un autre projet, indiquez son chemin :
-
-```bash
-node dist/index.js scan <chemin-du-projet>
-```
-
-### Exemple
-
-```bash
-node dist/index.js scan .
-```
-
-L'outil va alors :
-
-1. scanner les fichiers du projet ;
-2. appliquer les règles SEO et AEO ;
-3. calculer les scores ;
-4. analyser les fichiers HTML et Markdown avec l'IA ;
-5. gérer les éventuelles erreurs d'analyse ;
-6. générer le rapport d'audit.
-
-Le rapport final est enregistré dans le fichier :
+Le rapport est généré par défaut dans :
 
 ```text
 audit-report.json
 ```
+
+Il est possible de modifier son emplacement :
+
+```json
+{
+  "output": {
+    "path": "reports/audit-report.json"
+  }
+}
+```
+
+### Seuil CI/CD
+
+Un seuil minimal peut être défini pour les scores SEO et AEO :
+
+```json
+{
+  "ci": {
+    "threshold": 80
+  }
+}
+```
+
+Dans cet exemple, le scan échoue si le score SEO **ou** le score AEO est inférieur à 80.
+
+Cela permet d'utiliser l'outil dans une pipeline CI/CD.
+
+### Lancer un audit
+
+Depuis la racine du projet :
+
+```bash
+npx ai-audit scan
+```
+
+Pour analyser un autre dossier :
+
+```bash
+npx ai-audit scan ./mon-projet
+```
+
+Autres commandes disponibles :
+
+```bash
+npx ai-audit init
+npx ai-audit scan
+npx ai-audit --help
+npx ai-audit --version
+```
+
+### 🔒 Confidentialité
+
+L'outil effectue une partie des analyses localement afin de limiter les données transmises aux fournisseurs d'IA.
+
+Lorsque l'analyse IA est activée, certaines données du projet peuvent être transmises au fournisseur configuré (OpenRouter ou Groq).
+
+Avant leur transmission, les contenus analysés sont traités afin de réduire le risque d'exposition de certaines informations sensibles.
+
+Il est donc recommandé :
+
+de ne pas inclure de secrets ou de données sensibles dans les fichiers analysés ;
+
+de conserver les clés API uniquement dans les variables d'environnement ;
+
+d'utiliser include pour limiter les fichiers à analyser lorsque cela est nécessaire ;
+
+d'utiliser exclude pour empêcher l'analyse de fichiers ou dossiers sensibles ;
+
+d'éviter de transmettre inutilement des fichiers contenant des informations confidentielles.
+
+Les fichiers exclus du scan ne sont pas analysés ni transmis au fournisseur IA.
 
 ## 📊 Rapport généré
 
@@ -375,7 +526,8 @@ ai-project-auditor/
 │   ├── audit-runner.ts
 │   └── index.ts
 │
-├── .env
+├── .env.example
+├── ai-audit.config.json
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -437,9 +589,11 @@ AI Project Auditor intègre plusieurs mécanismes destinés à limiter les risqu
 
 ### 🔐 Protection des clés API
 
-Les clés API sont stockées dans des variables d'environnement et ne doivent pas être écrites directement dans le code source.
+Les clés API sont stockées dans des variables d'environnement et ne doivent jamais être écrites directement dans le code source.
 
-Le fichier `.env` doit rester privé et être exclu du dépôt Git.
+Elles ne doivent pas être affichées dans les logs, les messages d'erreur ou les rapports générés.
+
+Le fichier .env doit rester privé et ne doit jamais être ajouté au dépôt Git.
 
 ### 🧹 Nettoyage des messages d'erreur
 

@@ -21,6 +21,12 @@ export function checkMissingMetaDescription(
       message:
         "La page ne possède pas de balise meta description.",
       severity: "warning",
+      line: 1,
+      column: 1,
+      recommendation:
+        "Ajouter une meta description concise et pertinente qui résume le contenu principal de la page.",
+      fix:
+        'Ajouter une balise meta description dans la section <head>, par exemple <meta name="description" content="Description de la page">.',
     });
   }
 

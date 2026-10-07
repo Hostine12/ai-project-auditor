@@ -4,6 +4,10 @@ import path from "node:path";
 
 import type { AIAnalysisResult } from "./ai-provider.js";
 
+import {
+  AIAnalysisSchema,
+} from "./schemas/ai-analysis-schema.js";
+
 export interface AICacheEntry {
   hash: string;
   provider: string;
@@ -125,11 +129,21 @@ export async function getAICacheEntry(
     return null;
   }
 
-  if (entry.model !== model) {
+    if (entry.model !== model) {
     return null;
   }
 
-  return entry.result;
+  
+  const validatedResult = AIAnalysisSchema.safeParse(
+    entry.result
+  );
+
+  
+  if (!validatedResult.success) {
+    return null;
+  }
+
+  return validatedResult.data;
 }
 
 export async function setAICacheEntry(

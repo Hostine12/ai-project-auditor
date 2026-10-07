@@ -27,107 +27,116 @@ AnalysisResult,
 RuleScoreStats,
 } from "./types/seo.js";
 
+import { loadAuditConfig } from "./config/audit-config.js";
+
+import type { AuditConfig } from "./config/audit-config.js";
+
 export async function runAudit(
-  projectPath: string = "."
+  projectPath: string = ".",
+  config?: AuditConfig
 ): Promise<AuditResult> {
- const scanResult = await startScan(projectPath);
+  const effectiveConfig =
+  config ?? await loadAuditConfig(projectPath);
+
+  const scanResult = await startScan(
+  projectPath,
+  effectiveConfig
+);
 
 const files = scanResult.files;
 const scanErrors = scanResult.errors;
 
-const aiProviderConfig = createAIProvider();
-
-const aiFiles = files.filter(
-(file) =>
-file.extension === ".html" ||
-file.extension === ".md"
-);
-
 const aiResults: AIAnalysisResult[] = [];
-
 const aiErrors: AIAnalysisError[] = [];
 
-for (const file of aiFiles) {
-try {
-const result = await analyzeWithAI(
-  file,
-  aiProviderConfig.provider,
-  aiProviderConfig.providerName,
-  aiProviderConfig.model
-);
+if (effectiveConfig.features.ai) {
+  const aiProviderConfig =
+  createAIProvider(effectiveConfig);
 
-
-  aiResults.push(result);
-
-} catch (error) {
-  const errorMessage =
-    error instanceof Error
-      ? error.message
-      : "Erreur inconnue pendant l'analyse IA.";
-
-  const safeErrorMessage =
-    sanitizeErrorMessage(errorMessage);
-
-  aiErrors.push({
-    file: file.path,
-    error: safeErrorMessage,
-  });
-
-  console.error(
-    `Erreur IA pour ${file.path} :`,
-    safeErrorMessage
+  const aiFiles = files.filter(
+    (file) =>
+      file.extension === ".html" ||
+      file.extension === ".md"
   );
+
+  for (const file of aiFiles) {
+    try {
+      const result = await analyzeWithAI(
+        file,
+        aiProviderConfig.provider,
+        aiProviderConfig.providerName,
+        aiProviderConfig.model
+      );
+
+      aiResults.push(result);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Erreur inconnue pendant l'analyse IA.";
+
+      const safeErrorMessage =
+        sanitizeErrorMessage(errorMessage);
+
+      aiErrors.push({
+        file: file.path,
+        error: safeErrorMessage,
+      });
+
+      console.error(
+        `Erreur IA pour ${file.path} :`,
+        safeErrorMessage
+      );
+    }
+  }
 }
 
+const seoResults = effectiveConfig.features.seo
+  ? files.map((file) => analyzeSEO(file))
+  : [];
 
-}
-
-const seoResults = files.map(
-(file) => analyzeSEO(file)
-);
-
-const aeoResults = files.map(
-(file) => analyzeAEO(file)
-);
+const aeoResults = effectiveConfig.features.aeo
+  ? files.map((file) => analyzeAEO(file))
+  : [];
 
 const aeoIssues = aeoResults.flatMap(
-(result) => result.issues
+  (result) => result.issues
 );
 
 const aeoRuleStats = aggregateRuleStats(
-aeoResults
+  aeoResults
 );
 
-const aeoScore = calculateScoreFromRuleStats(
-  aeoRuleStats
-);
+const aeoScore = effectiveConfig.features.aeo
+  ? calculateScoreFromRuleStats(aeoRuleStats)
+  : 100;
 
 const filesWithIssues = files.filter(
-(_, index) => {
-const seoHasIssues =
-seoResults[index].issues.length > 0;
+  (_, index) => {
+    const seoHasIssues = effectiveConfig.features.seo
+      ? seoResults[index]?.issues.length > 0
+      : false;
 
+    const aeoHasIssues = effectiveConfig.features.aeo
+  ? aeoResults[index]?.issues.length > 0
+  : false;
 
-  const aeoHasIssues =
-    aeoResults[index].issues.length > 0;
-
-  return seoHasIssues || aeoHasIssues;
-}
-
-
+    return seoHasIssues || aeoHasIssues;
+  }
 ).length;
 
 const issues = seoResults.flatMap(
-(result) => result.issues
+  (result) =>
+     result.issues
 );
 
 const ruleStats = aggregateRuleStats(
-seoResults
+  seoResults
 );
 
-const score = calculateGlobalScore(
-seoResults
-);
+const score = effectiveConfig.features.seo
+  ? calculateScoreFromRuleStats(ruleStats)
+  : 100;
 
 return {
 project: {
@@ -240,24 +249,6 @@ stat.ruleId
 return Array.from(
 statsMap.values()
 );
-}
-
-function calculateGlobalScore(
-  results: AnalysisResult[]
-): number {
-  if (results.length === 0) {
-    return 100;
-  }
-
-  const totalScore = results.reduce(
-    (total, result) =>
-      total + result.score,
-    0
-  );
-
-  return Math.round(
-    totalScore / results.length
-  );
 }
 
 function calculateScoreFromRuleStats(

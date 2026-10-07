@@ -3,6 +3,7 @@ export interface AuditSummary {
   filesWithIssues: number;
   seoScore: number;
   aeoScore: number;
+  reportPath: string;
 }
 
 export function printAuditSummary(
@@ -34,6 +35,6 @@ export function printAuditSummary(
 
   console.log("Rapport");
   console.log("────────────────────────");
-  console.log("audit-report.json");
+  console.log(summary.reportPath);
   console.log("");
 }
