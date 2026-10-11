@@ -1,3 +1,4 @@
+
 import {
   readdir,
   readFile,
@@ -7,6 +8,8 @@ import {
 import {
   extname,
   join,
+  relative,
+  resolve,
 } from "node:path";
 
 import type {
@@ -23,6 +26,21 @@ const DEFAULT_IGNORED_DIRECTORIES = [
   "build",
 ];
 
+const DEFAULT_IGNORED_FILES = [
+  ".env",
+  ".env.local",
+  ".env.development",
+  ".env.development.local",
+  ".env.production",
+  ".env.production.local",
+  ".env.test",
+  ".env.staging",
+  "credentials.js",
+  "credentials.ts",
+  "secrets.js",
+  "secrets.ts",
+];
+
 const SUPPORTED_EXTENSIONS = [
   ".js",
   ".jsx",
@@ -34,60 +52,102 @@ const SUPPORTED_EXTENSIONS = [
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 Mo
 
+function isSensitiveFile(fileName: string): boolean {
+  return (
+    /^\.env(?:\..+)?$/.test(fileName) ||
+    /^(?:credentials|secrets)\.(?:js|ts|jsx|tsx)$/.test(fileName)
+  );
+}
+
 async function readProjectFile(
   filePath: string
 ): Promise<string> {
-  const content = await readFile(
-    filePath,
-    "utf-8"
-  );
-
-  return content;
+  return readFile(filePath, "utf-8");
 }
 
 function isExcludedPath(
   filePath: string,
   projectPath: string,
-  exclusions: string[]
+  exclusions: string[],
+  ignoredFiles: string[] = []
 ): boolean {
-  const relativePath =
-    filePath
-      .slice(projectPath.length + 1)
-      .replace(/\\/g, "/");
+  const relativePath = relative(
+    resolve(projectPath),
+    resolve(filePath)
+  ).replace(/\\/g, "/");
 
-  const fileName =
-    relativePath.split("/").pop();
+  const fileName = relativePath.split("/").pop() ?? "";
 
-  return exclusions.some(
-    (excludedPath) => {
-      const normalizedExclude =
-        excludedPath.replace(
-          /\\/g,
-          "/"
-        );
+  if (isSensitiveFile(fileName)) {
+    return true;
+  }
 
-      return (
-        relativePath ===
-          normalizedExclude ||
-        fileName === normalizedExclude
-      );
+  return [
+    ...exclusions,
+    ...ignoredFiles,
+  ].some((excludedPath) => {
+    const normalizedExclude = excludedPath
+      .replace(/\\/g, "/")
+      .replace(/^\.\//, "")
+      .replace(/\/+$/, "");
+
+    return (
+      relativePath === normalizedExclude ||
+      fileName === normalizedExclude
+    );
+  });
+}
+
+function isExcludedDirectory(
+  directory: string,
+  projectPath: string,
+  excludedDirectories: string[]
+): boolean {
+  const directoryName =
+    directory.split(/[\\/]/).pop() ?? "";
+
+  const relativeDirectoryPath = relative(
+    resolve(projectPath),
+    resolve(directory)
+  ).replace(/\\/g, "/");
+
+  return excludedDirectories.some((exclusion) => {
+    const normalizedExclusion = exclusion
+      .replace(/\\/g, "/")
+      .replace(/^\.\//, "")
+      .replace(/\/+$/, "");
+
+    if (!normalizedExclusion) {
+      return false;
     }
-  );
+
+    // Exclusion par nom de dossier : dist, build, components...
+    if (!normalizedExclusion.includes("/")) {
+      return directoryName === normalizedExclusion;
+    }
+
+    // Exclusion par chemin relatif : src/generated...
+    return (
+      relativeDirectoryPath === normalizedExclusion ||
+      relativeDirectoryPath.startsWith(
+        `${normalizedExclusion}/`
+      )
+    );
+  });
 }
 
 async function scanDirectory(
   directory: string,
   projectPath: string,
   excludedDirectories: string[],
-  excludedPaths: string[]
+  excludedPaths: string[],
+  ignoredFiles: string[]
 ): Promise<string[]> {
-  const directoryName =
-    directory.split(/[\\/]/).pop();
-
   if (
-    directoryName &&
-    excludedDirectories.includes(
-      directoryName
+    isExcludedDirectory(
+      directory,
+      projectPath,
+      excludedDirectories
     )
   ) {
     return [];
@@ -96,10 +156,9 @@ async function scanDirectory(
   let entries;
 
   try {
-    entries = await readdir(
-      directory,
-      { withFileTypes: true }
-    );
+    entries = await readdir(directory, {
+      withFileTypes: true,
+    });
   } catch {
     return [];
   }
@@ -107,59 +166,46 @@ async function scanDirectory(
   const files: string[] = [];
 
   for (const entry of entries) {
-    if (entry.isDirectory()) {
-      if (
-        excludedDirectories.includes(
-          entry.name
-        )
-      ) {
-        continue;
-      }
+    const entryPath = join(directory, entry.name);
 
-      const nestedFiles =
-        await scanDirectory(
-          join(
-            directory,
-            entry.name
-          ),
-          projectPath,
-          excludedDirectories,
-          excludedPaths
-        );
+    if (entry.isDirectory()) {
+      const nestedFiles = await scanDirectory(
+        entryPath,
+        projectPath,
+        excludedDirectories,
+        excludedPaths,
+        ignoredFiles
+      );
 
       files.push(...nestedFiles);
-    } else {
-      const filePath =
-        join(
-          directory,
-          entry.name
-        );
+      continue;
+    }
 
-      if (
-        isExcludedPath(
-          filePath,
-          projectPath,
-          excludedPaths
-        )
-      ) {
-        continue;
-      }
+    if (!entry.isFile()) {
+      continue;
+    }
 
-      const extension =
-        extname(entry.name);
+    if (
+      isExcludedPath(
+        entryPath,
+        projectPath,
+        excludedPaths,
+        ignoredFiles
+      )
+    ) {
+      continue;
+    }
 
-      if (
-        SUPPORTED_EXTENSIONS.includes(
-          extension
-        )
-      ) {
-        files.push(filePath);
-      }
+    const extension = extname(entry.name);
+
+    if (SUPPORTED_EXTENSIONS.includes(extension)) {
+      files.push(entryPath);
     }
   }
 
   return files;
 }
+
 export async function startScan(
   projectPath: string = ".",
   config?: AuditConfig
@@ -170,9 +216,7 @@ export async function startScan(
   let projectStats;
 
   try {
-    projectStats = await stat(
-      projectPath
-    );
+    projectStats = await stat(projectPath);
   } catch {
     throw new Error(
       `Le dossier indiqué n'existe pas : ${projectPath}`
@@ -185,130 +229,116 @@ export async function startScan(
     );
   }
 
-const excludedDirectories = [
-  ...new Set([
-    ...DEFAULT_IGNORED_DIRECTORIES,
+  const excludedDirectories = [
+    ...new Set([
+      ...DEFAULT_IGNORED_DIRECTORIES,
+      ...(config?.exclude ?? []),
+    ]),
+  ];
+
+  const excludedPaths = [
     ...(config?.exclude ?? []),
-  ]),
-];
+  ];
 
-const excludedPaths =
-  config?.exclude ?? [];
+  const ignoredFiles = [
+    ...DEFAULT_IGNORED_FILES,
+  ];
 
- let files: string[];
+  let files: string[];
 
-if (
-  config?.include &&
-  config.include.length > 0
-) {
-  const includedFiles =
-    await Promise.all(
-      config.include.map(
-        async (includedPath) => {
-          const targetPath =
-            join(
+  if (config?.include && config.include.length > 0) {
+    const includedFiles = await Promise.all(
+      config.include.map(async (includedPath) => {
+        const targetPath = join(
+          projectPath,
+          includedPath
+        );
+
+        let targetStats;
+
+        try {
+          targetStats = await stat(targetPath);
+        } catch {
+          return [];
+        }
+
+        if (targetStats.isDirectory()) {
+          return scanDirectory(
+            targetPath,
+            projectPath,
+            excludedDirectories,
+            excludedPaths,
+            ignoredFiles
+          );
+        }
+
+        if (targetStats.isFile()) {
+          if (
+            isExcludedPath(
+              targetPath,
               projectPath,
-              includedPath
-            );
-
-          let targetStats;
-
-          try {
-            targetStats =
-              await stat(
-                targetPath
-              );
-          } catch {
+              excludedPaths,
+              ignoredFiles
+            )
+          ) {
             return [];
           }
 
-          if (targetStats.isDirectory()) {
-            return scanDirectory(
-  targetPath,
-  projectPath,
-  excludedDirectories,
-  excludedPaths
-);
+          const extension = extname(targetPath);
+
+          if (SUPPORTED_EXTENSIONS.includes(extension)) {
+            return [targetPath];
           }
-
-          if (targetStats.isFile()) {
-  if (
-    isExcludedPath(
-      targetPath,
-      projectPath,
-      excludedPaths
-    )
-  ) {
-    return [];
-  }
-
-  const extension =
-    extname(targetPath);
-
-  if (
-    SUPPORTED_EXTENSIONS.includes(
-      extension
-    )
-  ) {
-    return [targetPath];
-  }
-}
-
-          return [];
         }
-      )
+
+        return [];
+      })
     );
 
-  files =
-    [
-      ...new Set(
-        includedFiles.flat()
-      ),
+    files = [
+      ...new Set(includedFiles.flat()),
     ];
-} else {
- files =
-  await scanDirectory(
-    projectPath,
-    projectPath,
-    excludedDirectories,
-    excludedPaths
-  );
-}
+  } else {
+    files = await scanDirectory(
+      projectPath,
+      projectPath,
+      excludedDirectories,
+      excludedPaths,
+      ignoredFiles
+    );
+  }
 
   const fileInfos: FileInfo[] = [];
   const scanErrors: ScanError[] = [];
-for (const file of files) {
-  try {
-    const fileStats = await stat(file);
 
-    if (fileStats.size > MAX_FILE_SIZE) {
+  for (const file of files) {
+    try {
+      const fileStats = await stat(file);
+
+      if (fileStats.size > MAX_FILE_SIZE) {
+        scanErrors.push({
+          file,
+          error:
+            "Fichier trop volumineux pour être analysé. La taille maximale autorisée est de 5 Mo.",
+        });
+
+        continue;
+      }
+
+      const content = await readProjectFile(file);
+
+      fileInfos.push({
+        path: file,
+        content,
+        extension: extname(file),
+      });
+    } catch {
       scanErrors.push({
         file,
-        error:
-          "Fichier trop volumineux pour être analysé. La taille maximale autorisée est de 5 Mo.",
+        error: "Impossible de lire le fichier.",
       });
-
-      continue;
     }
-
-    const content =
-      await readProjectFile(file);
-
-    fileInfos.push({
-      path: file,
-      content,
-      extension: extname(file),
-    });
-  } catch (error) {
-    scanErrors.push({
-      file,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Impossible de lire le fichier.",
-    });
   }
-}
 
   return {
     files: fileInfos,

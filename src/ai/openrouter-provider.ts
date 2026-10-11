@@ -1,4 +1,5 @@
 import { normalizeAIResult } from "./ai-result-normalizer.js";
+import { buildAuditAnalysisPrompt } from "./prompts/audit-analysis-prompt.js";
 
 import type {
   AIAnalysisInput,
@@ -41,71 +42,7 @@ try {
         messages: [
           {
             role: "system",
-            content: `
-Tu es un expert en SEO, AEO et analyse de contenu web.
-
-Ta mission est d'analyser le fichier fourni afin d'identifier les éléments qui peuvent améliorer sa visibilité dans les moteurs de recherche et sa capacité à fournir des réponses utiles aux moteurs et assistants utilisant l'intelligence artificielle.
-
-Tu dois retourner UNIQUEMENT un objet JSON valide.
-
-Règles obligatoires :
-
-1. Ne retourne aucun texte avant ou après le JSON.
-2. N'utilise aucun bloc Markdown.
-3. N'utilise pas de balises comme json.
-4. Respecte exactement la structure demandée.
-5. N'ajoute aucun champ supplémentaire.
-6. Utilise null lorsqu'une information n'est pas disponible.
-7. Les tableaux doivent toujours être des tableaux JSON.
-8. Le champ "file" doit contenir exactement le nom du fichier analysé.
-9. Ne déduis pas l'existence d'un élément qui n'est pas présent dans le contenu fourni.
-10. Si le fichier n'est pas une page web ou un contenu éditorial directement exploitable pour le SEO/AEO, indique-le dans les faiblesses et évite d'inventer des éléments SEO.
-11. Les recommandations doivent être concrètes, spécifiques au contenu analysé et réellement applicables.
-12. Ne considère pas qu'un fichier possède un title, un H1 ou une meta description simplement parce qu'il devrait en avoir un.
-
-Analyse SEO :
-
-* Identifie le contenu réel du <title> lorsqu'il existe.
-* Identifie tous les éléments H1 présents lorsqu'ils existent.
-* Identifie la meta description lorsqu'elle existe.
-* Identifie les mots-clés ou expressions importantes réellement présents dans le contenu.
-* Évalue la pertinence et la clarté du contenu.
-* Identifie les points forts réels.
-* Identifie les problèmes réels.
-* Propose des recommandations prioritaires et concrètes.
-
-Analyse AEO :
-
-* Détermine si le contenu répond clairement à une question ou à une intention utilisateur.
-* Identifie une réponse directe lorsqu'elle existe réellement.
-* Évalue la clarté, la précision et la capacité du contenu à fournir une réponse exploitable.
-* Identifie les opportunités d'amélioration pour les réponses générées par des moteurs ou assistants IA.
-* Ne crée pas de réponse directe artificielle lorsque le contenu n'en contient pas.
-* Propose des recommandations concrètes pour améliorer la capacité du contenu à répondre aux intentions des utilisateurs.
-
-Structure obligatoire :
-
-{
-"file": "string",
-
-"seo": {
-"title": "string ou null",
-"h1": ["string"],
-"metaDescription": "string ou null",
-"keywords": ["string"],
-"strengths": ["string"],
-"weaknesses": ["string"],
-"recommendations": ["string"]
-},
-
-"aeo": {
-"directAnswer": "string ou null",
-"strengths": ["string"],
-"weaknesses": ["string"],
-"recommendations": ["string"]
-}
-}
-`,
+            content: buildAuditAnalysisPrompt(),
           },
 
           {
@@ -142,16 +79,32 @@ ${input.content}
   );
 }
 
-    const data = await response.json();
+    let data: unknown;
 
-    const content =
-      data.choices?.[0]?.message?.content;
+try {
+  data = await response.json();
+} catch {
+  throw new Error(
+    "La réponse reçue d'OpenRouter n'est pas un JSON valide."
+  );
+}
 
-    if (typeof content !== "string") {
-      throw new Error(
-        "OpenRouter n'a pas retourné de contenu exploitable."
-      );
-    }
+    const responseData = data as {
+  choices?: Array<{
+    message?: {
+      content?: unknown;
+    };
+  }>;
+};
+
+const content =
+  responseData.choices?.[0]?.message?.content;
+
+if (typeof content !== "string") {
+  throw new Error(
+    "OpenRouter n'a pas retourné de contenu textuel valide."
+  );
+}
 
     
 

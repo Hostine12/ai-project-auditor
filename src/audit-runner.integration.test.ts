@@ -1,3 +1,11 @@
+import { AuditReportSchema } from "./ai/schemas/audit-report-schema.js";
+import {
+  readFile,
+} from "node:fs/promises";
+
+import {
+  generateJsonReport,
+} from "./report/json-reporter.js";
 import {
   afterEach,
   beforeEach,
@@ -163,7 +171,7 @@ describe(
           "utf-8"
         );
 
-        
+
         vi.mocked(analyzeWithAI).mockResolvedValue({
   file: join(
     projectDirectory,
@@ -215,6 +223,11 @@ describe(
         expect(
           result.aeo.score
         ).toBeLessThanOrEqual(100);
+
+        const validation =
+  AuditReportSchema.safeParse(result);
+
+expect(validation.success).toBe(true);
       }
     );
 
@@ -318,7 +331,7 @@ describe(
 expect(
   result.scan.errors[0]?.error
 ).toBe(
-  "Permission refusée"
+  "Impossible de lire le fichier."
 );
 
 expect(
@@ -334,6 +347,106 @@ expect(
     expect(
       result.seo.score
     ).toBeLessThanOrEqual(100);
+  }
+);
+
+it(
+  "génère un rapport JSON valide lorsqu'une analyse IA échoue",
+  async () => {
+    const projectDirectory =
+      await mkdtemp(
+        join(
+          tmpdir(),
+          "ai-project-auditor-"
+        )
+      );
+
+    temporaryDirectories.push(
+      projectDirectory
+    );
+
+    await writeFile(
+      join(
+        projectDirectory,
+        "index.html"
+      ),
+      `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Page de test</title>
+            <meta
+              name="description"
+              content="Une page de test"
+            />
+          </head>
+          <body>
+            <h1>Bienvenue</h1>
+          </body>
+        </html>
+      `,
+      "utf-8"
+    );
+
+    vi.mocked(
+      analyzeWithAI
+    ).mockRejectedValue(
+      new Error(
+        "Erreur simulée du fournisseur IA"
+      )
+    );
+
+    const result =
+      await runAudit(
+        projectDirectory
+      );
+
+    const outputPath =
+      join(
+        projectDirectory,
+        "audit-report.json"
+      );
+
+    await generateJsonReport(
+      result,
+      outputPath
+    );
+
+    const content =
+      await readFile(
+        outputPath,
+        "utf-8"
+      );
+
+    const parsed =
+      JSON.parse(content);
+
+    const validation =
+      AuditReportSchema.safeParse(
+        parsed
+      );
+
+    expect(
+      validation.success
+    ).toBe(true);
+
+    expect(
+      parsed.ai.errors
+    ).toHaveLength(1);
+
+    expect(
+      parsed.ai.errors[0].error
+    ).toBe(
+      "Erreur simulée du fournisseur IA"
+    );
+
+    expect(
+      parsed.seo.score
+    ).toBeGreaterThanOrEqual(0);
+
+    expect(
+      parsed.aeo.score
+    ).toBeGreaterThanOrEqual(0);
   }
 );
 
@@ -406,6 +519,94 @@ it("continue l'audit lorsqu'une analyse IA échoue", async () => {
     result.aeo.score
   ).toBeLessThanOrEqual(100);
 });
+
+it(
+  "continue l'audit lorsque l'initialisation du provider IA échoue",
+  async () => {
+    const projectDirectory = await mkdtemp(
+      join(tmpdir(), "ai-project-auditor-")
+    );
+
+    temporaryDirectories.push(
+      projectDirectory
+    );
+
+    await writeFile(
+      join(projectDirectory, "index.html"),
+      `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Page de test</title>
+            <meta
+              name="description"
+              content="Une page de test"
+            />
+          </head>
+
+          <body>
+            <h1>Bienvenue</h1>
+
+            <p>
+              Ceci est une page de test.
+            </p>
+          </body>
+        </html>
+      `,
+      "utf-8"
+    );
+
+    vi.mocked(
+      createAIProvider
+    ).mockImplementation(() => {
+      throw new Error(
+        "OPENROUTER_API_KEY est absente."
+      );
+    });
+
+    const result = await runAudit(
+      projectDirectory
+    );
+
+    expect(
+      result.metadata.filesScanned
+    ).toBe(1);
+
+    expect(
+      result.ai.results
+    ).toHaveLength(0);
+
+    expect(
+      result.ai.errors
+    ).toHaveLength(1);
+
+    expect(
+      result.ai.errors[0]?.file
+    ).toBe(".");
+
+    expect(
+      result.ai.errors[0]?.error
+    ).toBe(
+      "OPENROUTER_API_KEY est absente."
+    );
+
+    expect(
+      result.seo.score
+    ).toBeGreaterThanOrEqual(0);
+
+    expect(
+      result.seo.score
+    ).toBeLessThanOrEqual(100);
+
+    expect(
+      result.aeo.score
+    ).toBeGreaterThanOrEqual(0);
+
+    expect(
+      result.aeo.score
+    ).toBeLessThanOrEqual(100);
+  }
+);
 
 it("continue l'analyse des autres fichiers lorsqu'une analyse IA échoue", async () => {
   const projectDirectory = await mkdtemp(
@@ -561,6 +762,18 @@ it("gère un projet sans fichier analysable par l'IA", async () => {
     `
   );
 
+  await writeFile(
+  join(
+    projectDirectory,
+    "composant.jsx"
+  ),
+  `
+    export default function App() {
+      return <div>Hello</div>;
+    }
+  `
+);
+
   vi.mocked(analyzeWithAI).mockClear();
 
   const result = await runAudit(
@@ -569,19 +782,37 @@ it("gère un projet sans fichier analysable par l'IA", async () => {
 
   expect(
     result.metadata.filesScanned
-  ).toBe(3);
+  ).toBe(4);
 
   expect(
-    result.ai.results
-  ).toHaveLength(0);
+  result.ai.results
+).toHaveLength(2);
 
-  expect(
-    result.ai.errors
-  ).toHaveLength(0);
+expect(
+  result.ai.errors
+).toHaveLength(0);
 
-  expect(
-    analyzeWithAI
-  ).not.toHaveBeenCalled();
+expect(
+  analyzeWithAI
+).toHaveBeenCalledTimes(2);
+
+expect(
+  vi.mocked(analyzeWithAI).mock.calls
+).toEqual(
+  expect.arrayContaining([
+    expect.arrayContaining([
+      expect.objectContaining({
+        path: expect.stringContaining("composant.tsx"),
+      }),
+    ]),
+    expect.arrayContaining([
+      expect.objectContaining({
+        path: expect.stringContaining("composant.jsx"),
+      }),
+    ]),
+  ])
+);
+});
 });
 
 it("analyse correctement plusieurs fichiers dans un même projet", async () => {
@@ -1173,8 +1404,5 @@ it(
         threshold: 0,
       },
     });
-  }
-);
-
   }
 );

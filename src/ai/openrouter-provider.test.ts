@@ -198,4 +198,29 @@ describe("OpenRouterProvider", () => {
       ).not.toContain(apiKey);
     }
   });
+
+  it("rejette une réponse HTTP contenant un JSON invalide", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response("{json invalide", {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+  );
+
+  const provider = new OpenRouterProvider(
+    "test-api-key",
+    "test-model"
+  );
+
+  await expect(
+    provider.analyze({
+      file: "index.html",
+      content: "<html></html>",
+    })
+  ).rejects.toThrow(
+    "La réponse reçue d'OpenRouter n'est pas un JSON valide."
+  );
+});
 });

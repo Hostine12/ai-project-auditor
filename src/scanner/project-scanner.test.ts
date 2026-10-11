@@ -42,9 +42,11 @@ describe("startScan", () => {
     const result = await startScan(".");
 
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]?.error).toBe(
-      "Permission refusée"
-    );
+    expect(result.errors).toContainEqual(
+  expect.objectContaining({
+    error: "Impossible de lire le fichier.",
+  })
+);
   });
 it("utilise les exclusions fournies par la configuration", async () => {
   const projectPath = await mkdtemp(
@@ -698,78 +700,52 @@ it(
       );
 
     try {
-      await writeFile(
-        join(
-          projectPath,
-          ".env"
-        ),
-        "API_KEY=secret",
-        "utf-8"
-      );
+      const sensitiveFiles = [
+        ".env",
+        ".env.local",
+        ".env.production",
+        "credentials.js",
+        "credentials.ts",
+        "secrets.js",
+        "secrets.ts",
+        ".env.production.local",
+        ".env.development.local",
+        ".env.staging",
+        ".env.preview",
+        ".env.test.local",
+        ".env.development.test",
+      ];
+
+      for (const fileName of sensitiveFiles) {
+        await writeFile(
+          join(projectPath, fileName),
+          "API_KEY=secret",
+          "utf-8"
+        );
+      }
 
       await writeFile(
-        join(
-          projectPath,
-          ".env.local"
-        ),
-        "API_KEY=local-secret",
-        "utf-8"
-      );
-
-      await writeFile(
-        join(
-          projectPath,
-          ".env.production"
-        ),
-        "API_KEY=production-secret",
-        "utf-8"
-      );
-
-      await writeFile(
-        join(
-          projectPath,
-          "index.html"
-        ),
-        "<html></html>",
+        join(projectPath, "index.html"),
+        "<html><head><title>Test</title></head><body></body></html>",
         "utf-8"
       );
 
       const result =
-        await startScan(
-          projectPath
-        );
+        await startScan(projectPath);
+
+      for (const fileName of sensitiveFiles) {
+        expect(
+          result.files.some(
+            (file) =>
+              file.path.endsWith(fileName)
+          )
+        ).toBe(false);
+      }
 
       expect(
         result.files.some(
           (file) =>
-            file.path.endsWith(".env")
-        )
-      ).toBe(false);
-
-      expect(
-        result.files.some(
-          (file) =>
-            file.path.endsWith(
-              ".env.local"
-            )
-        )
-      ).toBe(false);
-
-      expect(
-        result.files.some(
-          (file) =>
-            file.path.endsWith(
-              ".env.production"
-            )
-        )
-      ).toBe(false);
-
-      expect(
-        result.files.some(
-          (file) =>
-            file.path.endsWith(
-              "index.html"
-            )
+            file.path.endsWith("index.html")
         )
       ).toBe(true);
     } finally {
@@ -846,5 +822,133 @@ it(
     }
   }
 );
+
+
+it(
+  "exclut les fichiers sensibles même lorsqu'ils sont explicitement inclus",
+  async () => {
+    const projectPath = await mkdtemp(
+      join(tmpdir(), "ai-auditor-sensitive-include-test-")
+    );
+
+    try {
+      await writeFile(
+        join(projectPath, "credentials.ts"),
+        'export const API_KEY = "secret";',
+        "utf-8"
+      );
+
+      await writeFile(
+        join(projectPath, "index.html"),
+        "<html><head><title>Test</title></head><body></body></html>",
+        "utf-8"
+      );
+
+      const result = await startScan(projectPath, {
+        ai: { provider: "openrouter" },
+        include: [
+  "credentials.ts",
+  "index.html",
+  ".env.preview",
+  ".env.test.local",
+  ".env.development.test",
+],
+        exclude: ["node_modules", ".git", "dist", "build"],
+        features: { seo: true, aeo: true, ai: true },
+        output: { path: "audit-report.json" },
+        ci: { threshold: 0 },
+      });
+
+      expect(
+        result.files.some(
+          (file) => file.path.endsWith("credentials.ts")
+        )
+      ).toBe(false);
+
+      expect(
+        result.files.some(
+          (file) => file.path.endsWith("index.html")
+        )
+      ).toBe(true);
+    } finally {
+      await rm(projectPath, {
+        recursive: true,
+        force: true,
+      });
+    }
+  }
+);
+
+it(
+  "exclut un dossier indiqué par son chemin relatif complet",
+  async () => {
+    const projectPath = await mkdtemp(
+      join(tmpdir(), "ai-auditor-nested-exclude-test-")
+    );
+
+    try {
+      const generatedFolder = join(
+        projectPath,
+        "src",
+        "generated"
+      );
+
+      await mkdir(generatedFolder, {
+        recursive: true,
+      });
+
+      await writeFile(
+        join(projectPath, "index.html"),
+        "<html><body>Page principale</body></html>",
+        "utf-8"
+      );
+
+      await writeFile(
+        join(generatedFolder, "page.html"),
+        "<html><body>Page générée</body></html>",
+        "utf-8"
+      );
+
+      const config = {
+        include: [],
+        exclude: ["src/generated"],
+        features: {
+          seo: true,
+          aeo: true,
+          ai: true,
+        },
+        output: {
+          path: "audit-report.json",
+        },
+        ci: {
+          threshold: 0,
+        },
+      };
+
+      const result = await startScan(
+        projectPath,
+        config
+      );
+
+      expect(
+        result.files.some(
+          (file) => file.path.endsWith("index.html")
+        )
+      ).toBe(true);
+
+      expect(
+        result.files.some(
+          (file) => file.path.endsWith("page.html")
+        )
+      ).toBe(false);
+    } finally {
+      await rm(projectPath, {
+        recursive: true,
+        force: true,
+      });
+    }
+  }
+);
+
 
 });

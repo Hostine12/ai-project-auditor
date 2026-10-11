@@ -144,37 +144,50 @@ export async function loadAuditConfig(
   const config =
     userConfig as Record<string, unknown>;
 
-  const ai =
-    typeof config.ai === "object" &&
-    config.ai !== null &&
-    !Array.isArray(config.ai)
-      ? config.ai as Record<string, unknown>
-      : {};
 
-  const features =
-    typeof config.features === "object" &&
-    config.features !== null &&
-    !Array.isArray(config.features)
-      ? config.features as Record<string, unknown>
-      : {};
+const ai =
+  config.ai === undefined
+    ? {}
+    : getConfigSection(config.ai, "ai");
 
-  const output =
-    typeof config.output === "object" &&
-    config.output !== null &&
-    !Array.isArray(config.output)
-      ? config.output as Record<string, unknown>
-      : {};
+const features =
+  config.features === undefined
+    ? {}
+    : getConfigSection(config.features, "features");
 
-  const ci =
-    typeof config.ci === "object" &&
-    config.ci !== null &&
-    !Array.isArray(config.ci)
-      ? config.ci as Record<string, unknown>
-      : {};
+const output =
+  config.output === undefined
+    ? {}
+    : getConfigSection(config.output, "output");
+
+const ci =
+  config.ci === undefined
+    ? {}
+    : getConfigSection(config.ci, "ci");
+
 
   const provider =
     ai.provider ??
     defaultConfig.ai.provider;
+
+
+function getConfigSection(
+  value: unknown,
+  sectionName: string
+): Record<string, unknown> {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  ) {
+    throw new Error(
+      `La section '${sectionName}' doit être un objet JSON.`
+    );
+  }
+
+  return value as Record<string, unknown>;
+}
+
 
   if (
     provider !== "openrouter" &&
@@ -189,14 +202,18 @@ export async function loadAuditConfig(
   const model =
     ai.model;
 
-  if (
-    model !== undefined &&
-    typeof model !== "string"
-  ) {
-    throw new Error(
-      "Le modèle IA doit être une chaîne de caractères."
-    );
-  }
+
+if (
+  model !== undefined &&
+  (
+    typeof model !== "string" ||
+    model.trim() === ""
+  )
+) {
+  throw new Error(
+    "Le modèle IA doit être une chaîne de caractères non vide."
+  );
+}
 
   const include =
     config.include ??

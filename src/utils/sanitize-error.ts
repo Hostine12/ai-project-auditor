@@ -3,11 +3,17 @@ export function sanitizeErrorMessage(
 ): string {
   return message
     .replace(
-      /OPENROUTER_API_KEY\s*=\s*[^\s,;]+/gi,
-      "OPENROUTER_API_KEY=[REDACTED]"
+      /\b(OPENROUTER_API_KEY|GROQ_API_KEY)\s*[:=]\s*["']?([^\s,;"']+)/gi,
+      (_match, variableName: string, secret: string) => {
+        const punctuation = secret.match(/[.!?]+$/)?.[0] ?? "";
+        return `${variableName.toUpperCase()}=[REDACTED]${punctuation}`;
+      }
     )
     .replace(
-      /GROQ_API_KEY\s*=\s*[^\s,;]+/gi,
-      "GROQ_API_KEY=[REDACTED]"
+      /(\bAuthorization\s*:\s*Bearer\s+)([^\s,;"']+)/gi,
+      (_match, prefix: string, secret: string) => {
+        const punctuation = secret.match(/[.!?]+$/)?.[0] ?? "";
+        return `${prefix}[REDACTED]${punctuation}`;
+      }
     );
 }

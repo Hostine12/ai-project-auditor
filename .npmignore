@@ -1,0 +1,22 @@
+# Sources et tests
+src/
+*.test.ts
+*.spec.ts
+vitest.config.*
+tsconfig.json
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+ai-audit.config.json
+
+# Rapports et caches
+audit-report.json
+reports/
+.ai-project-auditor/
+.ai-project-auditor-test/
+
+# Fichiers temporaires
+sauvegarde-readme.txt
+*.tgz

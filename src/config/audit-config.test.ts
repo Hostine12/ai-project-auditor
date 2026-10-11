@@ -468,3 +468,126 @@ it(
   }
 );
 });
+
+
+describe("Validation des sections de configuration", () => {
+  it.each([
+    ["ai", "invalid"],
+    ["features", "invalid"],
+    ["output", "invalid"],
+    ["ci", "invalid"],
+  ])(
+    "rejette une section %s qui n'est pas un objet",
+    async (section, value) => {
+      const projectPath = await mkdtemp(
+        join(tmpdir(), "ai-audit-config-")
+      );
+
+      try {
+        await writeFile(
+          join(projectPath, "ai-audit.config.json"),
+          JSON.stringify({
+            [section]: value,
+          })
+        );
+
+        await expect(
+          loadAuditConfig(projectPath)
+        ).rejects.toThrow();
+      } finally {
+        await rm(projectPath, {
+          recursive: true,
+          force: true,
+        });
+      }
+    }
+  );
+
+  it.each([
+    "",
+    "   ",
+  ])(
+    "rejette un modèle IA vide ou composé d'espaces",
+    async (model) => {
+      const projectPath = await mkdtemp(
+        join(tmpdir(), "ai-audit-config-")
+      );
+
+      try {
+        await writeFile(
+          join(projectPath, "ai-audit.config.json"),
+          JSON.stringify({
+            ai: {
+              model,
+            },
+          })
+        );
+
+        await expect(
+          loadAuditConfig(projectPath)
+        ).rejects.toThrow();
+      } finally {
+        await rm(projectPath, {
+          recursive: true,
+          force: true,
+        });
+      }
+    }
+  );
+
+
+it("rejette une configuration exclude invalide", async () => {
+  const projectPath = await mkdtemp(
+    join(tmpdir(), "ai-audit-config-")
+  );
+
+  try {
+    await writeFile(
+      join(projectPath, "ai-audit.config.json"),
+      JSON.stringify({
+        exclude: "node_modules",
+      })
+    );
+
+    await expect(
+      loadAuditConfig(projectPath)
+    ).rejects.toThrow(
+      "configuration 'exclude'"
+    );
+  } finally {
+    await rm(projectPath, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+
+it("rejette une fonctionnalité qui n'est pas booléenne", async () => {
+  const projectPath = await mkdtemp(
+    join(tmpdir(), "ai-audit-config-")
+  );
+
+  try {
+    await writeFile(
+      join(projectPath, "ai-audit.config.json"),
+      JSON.stringify({
+        features: {
+          seo: "true",
+        },
+      })
+    );
+
+    await expect(
+      loadAuditConfig(projectPath)
+    ).rejects.toThrow(
+      "valeurs booléennes"
+    );
+  } finally {
+    await rm(projectPath, {
+      recursive: true,
+      force: true,
+    });
+  }
+});
+
+});

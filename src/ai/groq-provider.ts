@@ -1,4 +1,5 @@
 import { normalizeAIResult } from "./ai-result-normalizer.js";
+import { buildAuditAnalysisPrompt } from "./prompts/audit-analysis-prompt.js";
 import type {
   AIAnalysisInput,
   AIAnalysisResult,
@@ -39,55 +40,8 @@ try {
         messages: [
           {
             role: "system",
-            content: `
-Tu es un expert en SEO et AEO.
+  content: buildAuditAnalysisPrompt(),
 
-Tu dois analyser le fichier fourni.
-
-Tu dois retourner UNIQUEMENT un objet JSON valide.
-
-Règles obligatoires :
-
-1. Ne retourne aucun texte avant ou après le JSON.
-2. N'utilise pas de bloc Markdown.
-3. N'utilise pas de balises comme \`\`\`json.
-4. Respecte exactement la structure demandée.
-5. N'ajoute aucun champ supplémentaire.
-6. Utilise null lorsqu'une information n'est pas disponible.
-7. Les tableaux doivent toujours être des tableaux JSON.
-8. Le champ "file" doit contenir le nom du fichier analysé.
-
-Structure obligatoire :
-
-{
-  "file": "string",
-
-  "seo": {
-    "title": "string ou null",
-    "h1": ["string"],
-    "metaDescription": "string ou null",
-    "keywords": ["string"],
-    "strengths": ["string"],
-    "weaknesses": ["string"],
-    "recommendations": ["string"]
-  },
-
-  "aeo": {
-    "directAnswer": "string ou null",
-    "strengths": ["string"],
-    "weaknesses": ["string"],
-    "recommendations": ["string"]
-  }
-}
-
-Consignes supplémentaires :
-
-- Analyse uniquement ce qui est réellement présent dans le fichier.
-- Ne suppose pas qu'une balise ou une information existe si elle n'est pas présente.
-- Pour un fichier HTML, identifie réellement les éléments title, h1 et meta description.
-- Pour un fichier Markdown, analyse les titres et le contenu réellement présents.
-- Si le fichier est du code ou ne contient pas de contenu pertinent pour le SEO, indique-le clairement.
-`,
           },
 
           {
@@ -123,16 +77,32 @@ ${input.content}
   );
 }
 
-    const data = await response.json();
+    let data: unknown;
 
-    const content =
-      data.choices?.[0]?.message?.content;
+try {
+  data = await response.json();
+} catch {
+  throw new Error(
+    "La réponse reçue de Groq n'est pas un JSON valide."
+  );
+}
 
-    if (typeof content !== "string") {
-      throw new Error(
-        "Groq n'a pas retourné de contenu exploitable."
-      );
-    }
+    const responseData = data as {
+  choices?: Array<{
+    message?: {
+      content?: unknown;
+    };
+  }>;
+};
+
+const content =
+  responseData.choices?.[0]?.message?.content;
+
+if (typeof content !== "string") {
+  throw new Error(
+    "Groq n'a pas retourné de contenu textuel valide."
+  );
+}
 
     const cleanedContent = content
       .replace(/^```json\s*/i, "")
@@ -176,5 +146,4 @@ if (!validatedResult.success) {
 return validatedResult.data;
   }
 }
-
 

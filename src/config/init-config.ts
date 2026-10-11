@@ -1,5 +1,7 @@
+
 import {
   access,
+  mkdir,
   writeFile,
 } from "node:fs/promises";
 
@@ -8,10 +10,9 @@ import {
 } from "node:path";
 
 const DEFAULT_CONFIG = {
-ai: {
-  provider: "openrouter",
-},
-
+  ai: {
+    provider: "openrouter",
+  },
   include: [],
   exclude: [
     "node_modules",
@@ -35,25 +36,37 @@ ai: {
 export async function initAuditConfig(
   projectPath: string = "."
 ): Promise<string> {
+  await mkdir(projectPath, {
+    recursive: true,
+  });
+
   const configPath = join(
     projectPath,
     "ai-audit.config.json"
   );
 
+  let configExists = false;
+
   try {
     await access(configPath);
+    configExists = true;
+  } catch (error) {
+    const code =
+      error !== null &&
+      typeof error === "object" &&
+      "code" in error
+        ? error.code
+        : undefined;
 
+    if (code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  if (configExists) {
     throw new Error(
       "Le fichier ai-audit.config.json existe déjà."
     );
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message ===
-        "Le fichier ai-audit.config.json existe déjà."
-    ) {
-      throw error;
-    }
   }
 
   await writeFile(

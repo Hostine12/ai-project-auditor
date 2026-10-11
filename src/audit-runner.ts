@@ -1,5 +1,7 @@
 import "dotenv/config";
 
+import { shouldAnalyzeWithAI } from "./ai/should-analyze-with-ai.js";
+
 import { basename, resolve } from "node:path";
 
 import { startScan } from "./scanner/project-scanner.js";
@@ -48,49 +50,65 @@ const scanErrors = scanResult.errors;
 
 const aiResults: AIAnalysisResult[] = [];
 const aiErrors: AIAnalysisError[] = [];
-
 if (effectiveConfig.features.ai) {
-  const aiProviderConfig =
-  createAIProvider(effectiveConfig);
+  try {
+    const aiProviderConfig =
+      createAIProvider(effectiveConfig);
 
-  const aiFiles = files.filter(
-    (file) =>
-      file.extension === ".html" ||
-      file.extension === ".md"
-  );
+    const aiFiles = files.filter(
+  shouldAnalyzeWithAI
+);
 
-  for (const file of aiFiles) {
-    try {
-      const result = await analyzeWithAI(
-        file,
-        aiProviderConfig.provider,
-        aiProviderConfig.providerName,
-        aiProviderConfig.model
-      );
+    for (const file of aiFiles) {
+      try {
+        const result = await analyzeWithAI(
+          file,
+          aiProviderConfig.provider,
+          aiProviderConfig.providerName,
+          aiProviderConfig.model
+        );
 
-      aiResults.push(result);
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Erreur inconnue pendant l'analyse IA.";
+        aiResults.push(result);
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Erreur inconnue pendant l'analyse IA.";
 
-      const safeErrorMessage =
-        sanitizeErrorMessage(errorMessage);
+        const safeErrorMessage =
+          sanitizeErrorMessage(errorMessage);
 
-      aiErrors.push({
-        file: file.path,
-        error: safeErrorMessage,
-      });
+        aiErrors.push({
+          file: file.path,
+          error: safeErrorMessage,
+        });
 
-      console.error(
-        `Erreur IA pour ${file.path} :`,
-        safeErrorMessage
-      );
+        console.error(
+          `Erreur IA pour ${file.path} :`,
+          safeErrorMessage
+        );
+      }
     }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Erreur inconnue lors de l'initialisation du provider IA.";
+
+    const safeErrorMessage =
+      sanitizeErrorMessage(errorMessage);
+
+    aiErrors.push({
+      file: ".",
+      error: safeErrorMessage,
+    });
+
+    console.error(
+      "Erreur lors de l'initialisation du provider IA :",
+      safeErrorMessage
+    );
   }
 }
-
 const seoResults = effectiveConfig.features.seo
   ? files.map((file) => analyzeSEO(file))
   : [];
