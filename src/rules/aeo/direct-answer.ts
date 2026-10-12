@@ -14,23 +14,43 @@ export function checkDirectAnswer(
     return issues;
   }
 
-  const hasTextContent =
-    /<p\b[^>]*>[\s\S]*?\S[\s\S]*?<\/p>/i.test(
-      file.content
-    );
+  // Recherche les paragraphes HTML.
+  const paragraphs = [
+    ...file.content.matchAll(
+      /<p\b[^>]*>([\s\S]*?)<\/p>/gi
+    ),
+  ];
 
-  if (!hasTextContent) {
+  // Retire les balises HTML et les espaces superflus.
+  const hasDirectAnswer = paragraphs.some((paragraph) => {
+    const text = (paragraph[1] ?? "")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;|&apos;/gi, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Évite de considérer un paragraphe très court
+    // comme une réponse suffisamment informative.
+    return text.length >= 40;
+  });
+
+  if (!hasDirectAnswer) {
     issues.push({
       type: "missing-direct-answer",
       message:
-        "La page ne contient pas de contenu textuel directement identifiable.",
+        "La page ne contient pas de paragraphe suffisamment informatif pour être identifié comme une réponse directe.",
       severity: "warning",
       line: 1,
       column: 1,
       recommendation:
-        "Ajouter une réponse ou une explication claire et directement identifiable dans le contenu de la page.",
+        "Ajouter un paragraphe clair et informatif qui répond directement à la question ou présente l'information principale de la page.",
       fix:
-        "Ajouter un paragraphe contenant une réponse claire et concise, par exemple <p>Notre service permet de...</p>.",
+        "Ajouter un paragraphe concis et informatif, par exemple <p>Notre service permet aux entreprises de gérer leurs commandes en ligne et de suivre leurs livraisons.</p>.",
     });
   }
 

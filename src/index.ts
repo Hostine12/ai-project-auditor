@@ -15,7 +15,7 @@ import {
   initAuditConfig,
 } from "./config/init-config.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.0.0-beta.1";
 
 function showHelp(): void {
   console.log(`

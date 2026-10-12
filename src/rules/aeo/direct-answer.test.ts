@@ -73,7 +73,8 @@ describe("checkDirectAnswer", () => {
       extension: ".jsx",
       content: `
         export default function Home() {
-          return <p>Notre service permet de...</p>;
+          return <p>Notre service permet aux entreprises de gérer leurs commandes en ligne et de suivre leurs livraisons.</p>;
+
         }
       `,
     };
@@ -83,7 +84,7 @@ describe("checkDirectAnswer", () => {
       extension: ".tsx",
       content: `
         export default function Home() {
-          return <p>Notre service permet de...</p>;
+          return <p>Notre service permet aux entreprises de gérer leurs commandes en ligne et de suivre leurs livraisons.</p>;
         }
       `,
     };
